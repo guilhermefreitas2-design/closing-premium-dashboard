@@ -101,7 +101,39 @@ canvas{border-radius:8px}
 .proj-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
 .opex-area-row td{background:rgba(130,10,209,.02)!important;color:var(--grey-mid)}
 .opex-arrow{font-size:10px;margin-right:6px;display:inline-block;transition:transform .2s}
-@media print{.topbar{position:relative}.page{display:block!important;page-break-after:always}#page-adjustments{display:none!important}}
+
+/* ── AI Chat Widget ── */
+#chat-fab{position:fixed;bottom:28px;right:28px;width:56px;height:56px;border-radius:50%;background:var(--purple);color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(130,10,209,.35);z-index:9999;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}
+#chat-fab:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(130,10,209,.45)}
+#chat-fab svg{width:26px;height:26px;fill:#fff}
+#chat-fab .chat-fab-badge{position:absolute;top:-2px;right:-2px;width:18px;height:18px;background:#ef4444;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;border:2px solid #fff}
+#chat-panel{position:fixed;bottom:96px;right:28px;width:400px;max-height:520px;background:#fff;border-radius:16px;box-shadow:0 12px 48px rgba(0,0,0,.18);z-index:9998;display:flex;flex-direction:column;overflow:hidden;transform:scale(0);transform-origin:bottom right;opacity:0;transition:transform .25s cubic-bezier(.4,0,.2,1),opacity .2s ease}
+#chat-panel.open{transform:scale(1);opacity:1}
+.chat-header{background:var(--purple);color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.chat-header-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.chat-header-title svg{width:18px;height:18px;fill:#fff}
+.chat-close{background:none;border:none;color:rgba(255,255,255,.75);cursor:pointer;font-size:22px;line-height:1;padding:0 4px}
+.chat-close:hover{color:#fff}
+.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0;background:#fafafa}
+.chat-msg{max-width:85%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.55;word-wrap:break-word;white-space:pre-wrap}
+.chat-msg a{color:var(--purple);text-decoration:underline}
+.chat-msg-user{align-self:flex-end;background:var(--purple);color:#fff;border-bottom-right-radius:4px}
+.chat-msg-ai{align-self:flex-start;background:#fff;color:var(--grey-dark);border:1px solid var(--grey-light);border-bottom-left-radius:4px}
+.chat-msg-ai strong{color:var(--purple)}
+.chat-msg-system{align-self:center;background:transparent;color:var(--grey-mid);font-size:11px;text-align:center;padding:4px 0}
+.chat-typing{align-self:flex-start;padding:8px 14px;font-size:12px;color:var(--grey-mid);display:none;align-items:center;gap:6px}
+.chat-typing .dot{width:6px;height:6px;border-radius:50%;background:var(--purple);opacity:.4;animation:chatBounce .6s infinite alternate}
+.chat-typing .dot:nth-child(2){animation-delay:.15s}
+.chat-typing .dot:nth-child(3){animation-delay:.3s}
+@keyframes chatBounce{to{opacity:1;transform:translateY(-3px)}}
+.chat-input-area{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--grey-light);background:#fff;flex-shrink:0}
+.chat-input{flex:1;border:1px solid var(--grey-light);border-radius:10px;padding:10px 14px;font-size:13px;font-family:inherit;resize:none;outline:none;max-height:80px;overflow-y:auto}
+.chat-input:focus{border-color:var(--purple);box-shadow:0 0 0 2px rgba(130,10,209,.12)}
+.chat-send{background:var(--purple);color:#fff;border:none;border-radius:10px;padding:0 16px;cursor:pointer;font-size:14px;font-weight:600;white-space:nowrap;transition:background .15s}
+.chat-send:hover{background:#6B08A0}
+.chat-send:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:500px){#chat-panel{right:8px;left:8px;width:auto;bottom:88px;max-height:70vh}#chat-fab{bottom:18px;right:18px;width:50px;height:50px}}
+@media print{.topbar{position:relative}.page{display:block!important;page-break-after:always}#page-adjustments{display:none!important}#chat-fab,#chat-panel{display:none!important}}
 </style>
 </head>
 <body>
@@ -2184,9 +2216,208 @@ document.getElementById('adj-reset-btn').addEventListener('click', function() {
   setTimeout(function() { status.style.display = 'none'; }, 3000);
 });
 
+/* ============== AI CHAT WIDGET ============== */
+var ANTHROPIC_KEY = '';
+var chatHistory = [];
+var chatOpen = false;
+
+function toggleChat() {
+  var panel = document.getElementById('chat-panel');
+  chatOpen = !chatOpen;
+  panel.classList.toggle('open', chatOpen);
+  document.getElementById('chat-badge').style.display = 'none';
+  if (chatOpen) {
+    setTimeout(function() { document.getElementById('chat-input').focus(); }, 300);
+  }
+}
+
+function gatherContext() {
+  var m = currentMonth;
+  var ytd = ytdMonths(m);
+  var ctx = 'DASHBOARD CONTEXT:\n';
+  ctx += 'Selected Tier: ' + currentTier + '\n';
+  ctx += 'Selected Month: ' + m + '\n';
+  ctx += 'Active Tab: ' + (document.querySelector('.page.active') || {}).id + '\n\n';
+
+  ctx += 'P&L SUMMARY (R$ millions):\n';
+  var trends = D.pnl_trends || {};
+  PNL_LINE_ORDER.forEach(function(def) {
+    var li = def.name;
+    var actKey = li + '_act';
+    var budKey = li + '_bud';
+    var aT = trends[actKey] || {};
+    var bT = trends[budKey] || {};
+    var a = aT[m] || 0;
+    var b = bT[m] || 0;
+    var ytdA = 0, ytdB = 0;
+    ytd.forEach(function(mm) { ytdA += (aT[mm] || 0); ytdB += (bT[mm] || 0); });
+    ctx += (def.sub ? '  ** ' : '  ') + li + ': Act=' + (a/1e6).toFixed(1) + 'M, Bud=' + (b/1e6).toFixed(1) + 'M, Var=' + ((a-b)/1e6).toFixed(1) + 'M';
+    ctx += '  |  YTD Act=' + (ytdA/1e6).toFixed(1) + 'M, YTD Bud=' + (ytdB/1e6).toFixed(1) + 'M\n';
+  });
+
+  ctx += '\nKEY KPIs (selected month):\n';
+  var km = D.kpi_card_monthly || {};
+  var kpiNames = Object.keys(km);
+  kpiNames.forEach(function(k) {
+    var info = km[k];
+    if (!info) return;
+    var a = (info.act || {})[m];
+    var b = (info.bud || {})[m];
+    if (a != null) ctx += '  ' + k + ': Act=' + Number(a).toLocaleString('en-US',{maximumFractionDigits:2}) + (b != null ? ', Bud=' + Number(b).toLocaleString('en-US',{maximumFractionDigits:2}) : '') + '\n';
+  });
+
+  var ox = D.opex_data || {};
+  if (Object.keys(ox).length > 0) {
+    ctx += '\nOPEX SUMMARY (R$ millions):\n';
+    var dirA = (ox['Direct_act'] || {})[m] || 0;
+    var indA = (ox['Indirect_act'] || {})[m] || 0;
+    var totA = (ox['Total_act'] || {})[m] || 0;
+    var totB = (ox['Total_bud'] || {})[m] || 0;
+    ctx += '  Total OPEX: Act=' + (totA/1e6).toFixed(1) + 'M, Bud=' + (totB/1e6).toFixed(1) + 'M\n';
+    ctx += '  Direct: ' + (dirA/1e6).toFixed(1) + 'M (' + (totA!==0?(Math.abs(dirA/totA)*100).toFixed(1):'0') + '%)\n';
+    ctx += '  Indirect: ' + (indA/1e6).toFixed(1) + 'M (' + (totA!==0?(Math.abs(indA/totA)*100).toFixed(1):'0') + '%)\n';
+  }
+
+  var adjTotal = 0;
+  PNL_LINE_ORDER.forEach(function(def) { if (!def.sub) adjTotal += getAdj(def.name); });
+  if (adjTotal !== 0) {
+    ctx += '\nACTIVE ADJUSTMENTS: Net impact = R$' + (adjTotal/1e6).toFixed(1) + 'M\n';
+  }
+
+  return ctx;
+}
+
+function chatMarkdown(text) {
+  return text
+    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+    .replace(/\n- /g, '\n\u2022 ')
+    .replace(/\n(\d+)\. /g, '\n$1. ')
+    .replace(/\n/g, '<br>');
+}
+
+function appendMsg(role, text) {
+  var container = document.getElementById('chat-messages');
+  var div = document.createElement('div');
+  div.className = 'chat-msg ' + (role === 'user' ? 'chat-msg-user' : 'chat-msg-ai');
+  div.innerHTML = role === 'user' ? text.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') : chatMarkdown(text);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendChat() {
+  var input = document.getElementById('chat-input');
+  var msg = input.value.trim();
+  if (!msg) return;
+
+  if (!ANTHROPIC_KEY) {
+    var key = prompt('Enter your Anthropic API key to use the Closing Assistant:');
+    if (!key || !key.trim()) return;
+    ANTHROPIC_KEY = key.trim();
+    try { localStorage.setItem('chat_anthropic_key', ANTHROPIC_KEY); } catch(e) {}
+  }
+
+  input.value = '';
+  input.style.height = 'auto';
+  appendMsg('user', msg);
+
+  chatHistory.push({ role: 'user', content: msg });
+
+  var typing = document.getElementById('chat-typing');
+  var sendBtn = document.getElementById('chat-send');
+  typing.style.display = 'flex';
+  sendBtn.disabled = true;
+
+  var systemPrompt = 'You are the Closing Assistant for Nubank\'s Premium & Affluent segment financial dashboard. '
+    + 'You help analysts understand P&L performance, KPIs, OPEX, and variances vs budget. '
+    + 'Answer concisely in the same language the user writes (Portuguese or English). '
+    + 'Use the dashboard data provided below to give data-driven answers. '
+    + 'When citing numbers, use R$ and millions (M) format. '
+    + 'If you cannot answer from the provided data, say so.\n\n'
+    + gatherContext();
+
+  try {
+    var resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: chatHistory
+      })
+    });
+
+    if (!resp.ok) {
+      var errBody = await resp.text();
+      if (resp.status === 401) {
+        ANTHROPIC_KEY = '';
+        try { localStorage.removeItem('chat_anthropic_key'); } catch(e) {}
+        throw new Error('Invalid API key. Please try again.');
+      }
+      throw new Error('API error (' + resp.status + '): ' + errBody.substring(0, 200));
+    }
+
+    var data = await resp.json();
+    var reply = (data.content && data.content[0] && data.content[0].text) || 'No response received.';
+    chatHistory.push({ role: 'assistant', content: reply });
+    appendMsg('assistant', reply);
+
+    if (!chatOpen) {
+      document.getElementById('chat-badge').style.display = 'flex';
+    }
+  } catch (err) {
+    appendMsg('assistant', 'Error: ' + err.message);
+    chatHistory.pop();
+  } finally {
+    typing.style.display = 'none';
+    sendBtn.disabled = false;
+  }
+}
+
+(function() {
+  try { ANTHROPIC_KEY = localStorage.getItem('chat_anthropic_key') || ''; } catch(e) {}
+  var input = document.getElementById('chat-input');
+  input.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+  });
+})();
+
 D = ALL_DATA[currentTier];
 MONTHS = ALL_MONTHS.slice(0, ALL_MONTHS.indexOf(currentMonth) + 1);
 renderAll();
 </script>
+<!-- AI Chat Widget -->
+<button id="chat-fab" onclick="toggleChat()" title="Ask the AI about the closing">
+  <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/><path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+  <span class="chat-fab-badge" id="chat-badge">1</span>
+</button>
+
+<div id="chat-panel">
+  <div class="chat-header">
+    <div class="chat-header-title">
+      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      Closing Assistant
+    </div>
+    <button class="chat-close" onclick="toggleChat()">&times;</button>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-msg chat-msg-system">Ask anything about the closing data. I have access to all P&amp;L, KPIs, and OPEX information.</div>
+  </div>
+  <div class="chat-typing" id="chat-typing">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    Analyzing...
+  </div>
+  <div class="chat-input-area">
+    <textarea class="chat-input" id="chat-input" rows="1" placeholder="e.g. Why did Net Income decrease this month?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
+    <button class="chat-send" id="chat-send" onclick="sendChat()">Send</button>
+  </div>
+</div>
+
 </body>
 </html>
