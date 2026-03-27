@@ -157,7 +157,6 @@ canvas{border-radius:8px}
       <button class="nav-btn" onclick="showPage('pnl',this)">P&L</button>
       <button class="nav-btn" onclick="showPage('pnl-product',this)">P&L By Product</button>
       <button class="nav-btn" onclick="showPage('kpis',this)">KPIs</button>
-      <button class="nav-btn" onclick="showPage('avb',this)">Act vs Bud</button>
       <button class="nav-btn" onclick="showPage('m2',this)">Deep Dive M2</button>
       <button class="nav-btn" onclick="showPage('adjustments',this)">Adjustments</button>
       <button class="nav-btn" onclick="showPage('explanation',this)">Result Explanation</button>
@@ -252,6 +251,10 @@ canvas{border-radius:8px}
     <div class="card"><div class="card-header"><span class="card-title">Revenue Components — Trend</span></div><div class="card-body"><div style="height:220px"><canvas id="revCompChart"></canvas></div></div></div>
     <div class="card"><div class="card-header"><span class="card-title">Cost Components — Trend</span></div><div class="card-body"><div style="height:220px"><canvas id="costCompChart"></canvas></div></div></div>
   </div>
+  <div class="section-row cols-2" style="margin-top:16px">
+    <div class="card"><div class="card-header"><span class="card-title">Total Revenue — Act vs Bud Trend</span></div><div class="card-body"><div style="height:220px"><canvas id="avbRevChart"></canvas></div></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Net Income — Act vs Bud Trend</span></div><div class="card-body"><div style="height:220px"><canvas id="avbNiChart"></canvas></div></div></div>
+  </div>
 </div>
 
 <!-- ===================== P&L BY PRODUCT ===================== -->
@@ -297,36 +300,6 @@ canvas{border-radius:8px}
   </div>
   <div id="kpi-tables-container" style="margin-bottom:24px"></div>
   <div id="kpi-charts-container"></div>
-</div>
-
-<!-- ===================== ACT vs BUD ===================== -->
-<div class="page" id="page-avb">
-  <div class="page-header">
-    <div>
-      <div class="page-title">Actuals vs Budget</div>
-      <div class="page-subtitle">Variance Analysis · P&L Lines</div>
-    </div>
-    <div class="page-meta">Source: TREP01</div>
-  </div>
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-header"><span class="card-title">P&L Variance Table — Actuals vs Budget</span></div>
-    <div class="card-body" style="padding:0;overflow-x:auto">
-      <table class="pnl-table" id="avb-table">
-        <thead>
-          <tr class="pnl-hdr-group">
-            <th class="pnl-col-label" style="min-width:180px">P&L Line</th>
-            <th>Actuals</th><th>Budget</th><th>Δ</th><th>Δ%</th>
-            <th>Act YTD</th><th>Bud YTD</th><th>Δ YTD</th><th>Δ% YTD</th>
-          </tr>
-        </thead>
-        <tbody id="avb-tbody"></tbody>
-      </table>
-    </div>
-  </div>
-  <div class="section-row cols-2">
-    <div class="card"><div class="card-header"><span class="card-title">Total Revenue — Act vs Bud Trend</span></div><div class="card-body"><div style="height:220px"><canvas id="avbRevChart"></canvas></div></div></div>
-    <div class="card"><div class="card-header"><span class="card-title">Net Income — Act vs Bud Trend</span></div><div class="card-body"><div style="height:220px"><canvas id="avbNiChart"></canvas></div></div></div>
-  </div>
 </div>
 
 <!-- ===================== DEEP DIVE M2 ===================== -->
@@ -726,7 +699,6 @@ function renderAll() {
   renderBridge();
   renderPnlTrendCharts();
   renderKpiPage();
-  renderAvbTable();
   renderAvbCharts();
   renderM2();
   renderAdjTable();
@@ -1019,22 +991,6 @@ function renderKpiPage() {
       options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, font:{ size:10 } } }, datalabels:{ display:false } }, scales:{ x:{ grid:{ display:false }, ticks:{ font:{ size:9 } } }, y:{ grid:{ color:GRID } } } }
     });
   });
-}
-
-function renderAvbTable() {
-  var pnl = computePnl();
-  var tb = document.getElementById('avb-tbody'); if(!tb) return;
-  var h = '';
-  pnl.forEach(function(r) {
-    var cls = r.is_subtotal?'subtotal':'';
-    var c1=dc(r.variance), c2=dc(r.var_ytd);
-    h += '<tr class="'+cls+'"><td>'+r.line_item+'</td>';
-    h += '<td>'+fmr(r.actuals/1e6)+'</td><td>'+fmr(r.budget/1e6)+'</td>';
-    h += '<td class="'+c1+'">'+fmr(r.variance/1e6)+'</td><td class="'+c1+'">'+fp(r.var_pct)+'</td>';
-    h += '<td>'+fmr(r.act_ytd/1e6)+'</td><td>'+fmr(r.bud_ytd/1e6)+'</td>';
-    h += '<td class="'+c2+'">'+fmr(r.var_ytd/1e6)+'</td><td class="'+c2+'">'+fp(r.var_pct_ytd)+'</td></tr>';
-  });
-  tb.innerHTML = h;
 }
 
 function renderAvbCharts() {
