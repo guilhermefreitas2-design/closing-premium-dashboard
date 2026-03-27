@@ -2401,7 +2401,9 @@ document.getElementById('adj-reset-btn').addEventListener('click', function() {
 });
 
 /* ============== AI CHAT WIDGET ============== */
-var ANTHROPIC_KEY = '';
+var LITELLM_URL = 'https://ist-prod-litellm.nullmplatform.com/v1/chat/completions';
+var LITELLM_KEY = 'sk-pBfKe99BhChZ1GUjrfNpjg';
+var LITELLM_MODEL = 'openai/gpt-4o';
 var chatHistory = [];
 var chatOpen = false;
 
@@ -2493,13 +2495,6 @@ async function sendChat() {
   var msg = input.value.trim();
   if (!msg) return;
 
-  if (!ANTHROPIC_KEY) {
-    var key = prompt('Enter your Anthropic API key to use the Closing Assistant:');
-    if (!key || !key.trim()) return;
-    ANTHROPIC_KEY = key.trim();
-    try { localStorage.setItem('chat_anthropic_key', ANTHROPIC_KEY); } catch(e) {}
-  }
-
   input.value = '';
   input.style.height = 'auto';
   appendMsg('user', msg);
@@ -2519,35 +2514,29 @@ async function sendChat() {
     + 'If you cannot answer from the provided data, say so.\n\n'
     + gatherContext();
 
+  var apiMessages = [{ role: 'system', content: systemPrompt }].concat(chatHistory);
+
   try {
-    var resp = await fetch('https://api.anthropic.com/v1/messages', {
+    var resp = await fetch(LITELLM_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        'Authorization': 'Bearer ' + LITELLM_KEY
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: LITELLM_MODEL,
         max_tokens: 1024,
-        system: systemPrompt,
-        messages: chatHistory
+        messages: apiMessages
       })
     });
 
     if (!resp.ok) {
       var errBody = await resp.text();
-      if (resp.status === 401) {
-        ANTHROPIC_KEY = '';
-        try { localStorage.removeItem('chat_anthropic_key'); } catch(e) {}
-        throw new Error('Invalid API key. Please try again.');
-      }
       throw new Error('API error (' + resp.status + '): ' + errBody.substring(0, 200));
     }
 
     var data = await resp.json();
-    var reply = (data.content && data.content[0] && data.content[0].text) || 'No response received.';
+    var reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || 'No response received.';
     chatHistory.push({ role: 'assistant', content: reply });
     appendMsg('assistant', reply);
 
@@ -2568,7 +2557,6 @@ MONTHS = ALL_MONTHS.slice(0, ALL_MONTHS.indexOf(currentMonth) + 1);
 renderAll();
 
 try {
-  ANTHROPIC_KEY = localStorage.getItem('chat_anthropic_key') || '';
   var _ci = document.getElementById('chat-input');
   if (_ci) _ci.addEventListener('input', function() {
     this.style.height = 'auto';
