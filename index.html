@@ -2405,18 +2405,18 @@ async function sendChat() {
   }
 }
 
-(function() {
-  try { ANTHROPIC_KEY = localStorage.getItem('chat_anthropic_key') || ''; } catch(e) {}
-  var input = document.getElementById('chat-input');
-  input.addEventListener('input', function() {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 80) + 'px';
-  });
-})();
-
 D = ALL_DATA[currentTier];
 MONTHS = ALL_MONTHS.slice(0, ALL_MONTHS.indexOf(currentMonth) + 1);
 renderAll();
+
+try {
+  ANTHROPIC_KEY = localStorage.getItem('chat_anthropic_key') || '';
+  var _ci = document.getElementById('chat-input');
+  if (_ci) _ci.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+  });
+} catch(_e) { console.warn('Chat init:', _e); }
 </script>
 
 </body>
