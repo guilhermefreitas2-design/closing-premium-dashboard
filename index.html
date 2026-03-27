@@ -1791,7 +1791,7 @@ function renderOpex() {
   tbody.innerHTML = bh;
 
   // --- Monthly trend chart ---
-  var trendLabels = MONTHS.filter(function(mm) { return ALL_MONTHS.indexOf(mm) <= cmIdx; });
+  var trendLabels = MONTHS.filter(function(mm) { return ALL_MONTHS.indexOf(mm) <= cmIdx && parseInt(mm.split(' ')[1],10) >= 25; });
   var dirData = trendLabels.map(function(mm) { return Math.abs(oxVal('Direct_act', mm))/1e6; });
   var indData = trendLabels.map(function(mm) { return Math.abs(oxVal('Indirect_act', mm))/1e6; });
   var totBudData = trendLabels.map(function(mm) { return Math.abs(oxVal('Total_bud', mm))/1e6; });
