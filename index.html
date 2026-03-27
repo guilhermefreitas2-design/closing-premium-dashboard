@@ -185,6 +185,10 @@ canvas{border-radius:8px}
     <div class="card"><div class="card-header"><span class="card-title">Total Revenue — Trend (R$M) · Act vs Bud</span></div><div class="card-body"><div style="height:220px"><canvas id="revTrendChart"></canvas></div></div></div>
     <div class="card"><div class="card-header"><span class="card-title">Gross Profit — Trend (R$M) · Act vs Bud</span></div><div class="card-body"><div style="height:220px"><canvas id="niTrendChart"></canvas></div></div></div>
   </div>
+  <div class="section-row cols-2" style="margin-top:16px">
+    <div class="card"><div class="card-header"><span class="card-title">ARPAC — Trend (R$) · Act vs Bud</span></div><div class="card-body"><div style="height:220px"><canvas id="arpacTrendChart"></canvas></div></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">GPAC — Trend (R$) · Act vs Bud</span></div><div class="card-body"><div style="height:220px"><canvas id="gpacTrendChart"></canvas></div></div></div>
+  </div>
 </div>
 
 <!-- ===================== P&L ===================== -->
@@ -766,6 +770,51 @@ function renderSummaryCharts() {
     ] },
     options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10 } }, datalabels:{ display:false } }, scales:{ x:{ grid:{ display:false } }, y:{ grid:{ color:GRID }, ticks:{ callback:function(v){ return v+'M'; } } } } }
   });
+
+  // ARPAC & GPAC trend charts (actuals + budget projected full year)
+  function kpiTrendChart(canvasId, kpiLabel, unit) {
+    var km = D.kpi_card_monthly;
+    if (!km || !km[kpiLabel]) return;
+    var info = km[kpiLabel];
+    var cmIdx = ALL_MONTHS.indexOf(currentMonth);
+    var actData = [], budData = [], projData = [];
+    MONTHS.forEach(function(m) {
+      var mi = ALL_MONTHS.indexOf(m);
+      var a = info.act[m] != null ? info.act[m] : null;
+      var b = info.bud[m] != null ? info.bud[m] : null;
+      budData.push(b);
+      if (mi <= cmIdx) {
+        actData.push(a);
+        projData.push(null);
+      } else {
+        actData.push(null);
+        var factor = computeAdjFactor(info.act, info.bud, 3);
+        projData.push(b != null ? b * factor : null);
+      }
+    });
+    if (cmIdx >= 0) {
+      var cmMonth = ALL_MONTHS[cmIdx];
+      var cmMonthIdx = MONTHS.indexOf(cmMonth);
+      if (cmMonthIdx >= 0 && actData[cmMonthIdx] != null) {
+        projData[cmMonthIdx] = actData[cmMonthIdx];
+      }
+    }
+    makeChart(canvasId, {
+      type:'line',
+      data:{ labels:MONTHS, datasets:[
+        { label:'Actuals', data:actData, borderColor:P, backgroundColor:'rgba(130,10,209,.08)', fill:true, borderWidth:2.5, tension:0.3, pointRadius:3, spanGaps:false },
+        { label:'Projected', data:projData, borderColor:P, borderDash:[6,3], backgroundColor:'rgba(130,10,209,.04)', fill:true, borderWidth:2, tension:0.3, pointRadius:3, spanGaps:false },
+        { label:'Budget', data:budData, borderColor:'#888', borderDash:[4,4], borderWidth:1.5, tension:0.3, pointRadius:0, fill:false }
+      ] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ position:'bottom', labels:{boxWidth:10} }, datalabels:{display:false} },
+        scales:{ x:{grid:{display:false}}, y:{grid:{color:GRID},ticks:{callback:function(v){return unit+v.toLocaleString('en-US',{maximumFractionDigits:0});}}} }
+      }
+    });
+  }
+
+  kpiTrendChart('arpacTrendChart', 'ARPAC', 'R$');
+  kpiTrendChart('gpacTrendChart', 'GPAC', 'R$');
 }
 
 function renderPnlTable() {
