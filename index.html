@@ -385,7 +385,16 @@ canvas{border-radius:8px}
       <div class="page-title">P&L Projection</div>
       <div class="page-subtitle" id="proj-subtitle">Hybrid projection through Dec 26</div>
     </div>
-    <div class="page-meta" id="proj-method-note">Actuals up to selected month · Future = Budget × avg deviation factor (last 3 months)</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <select id="proj-product-select" class="month-select" onchange="renderProjection()">
+        <option value="Consolidated">Consolidated</option>
+        <option value="Credit Card">Credit Card</option>
+        <option value="Lending">Lending</option>
+        <option value="NuConta">NuConta</option>
+        <option value="Investments">Investments</option>
+      </select>
+      <div class="page-meta" id="proj-method-note" style="margin:0">Actuals up to selected month · Future = Budget × avg deviation factor (last 3 months)</div>
+    </div>
   </div>
   <div class="proj-summary-grid" id="proj-summary-grid"></div>
   <div class="card" style="margin-bottom:16px">
@@ -1303,6 +1312,59 @@ function computeProjection() {
   return result;
 }
 
+function computeProductProjection(product) {
+  var fyMonths = projMonthsForYear();
+  var cmIdx = fyMonths.indexOf(currentMonth);
+  if (cmIdx < 0) cmIdx = fyMonths.length - 1;
+  var prodT = (D.product_pnl || {})[product] || {};
+
+  var result = [];
+  PNL_LINE_ORDER.forEach(function(def) {
+    var li = def.name;
+    var isSub = def.sub;
+    var monthly = [];
+    var fyProj = 0, fyBud = 0;
+
+    if (isSub) {
+      var comps = SUBTOTAL_DEFS[li] || [];
+      fyMonths.forEach(function(m, mi) {
+        var act = 0, bud = 0, proj = 0;
+        comps.forEach(function(c) {
+          var aT = prodT[c+'_act'] || {};
+          var bT = prodT[c+'_bud'] || {};
+          var a = aT[m] || 0, b = bT[m] || 0;
+          act += a; bud += b;
+          if (mi <= cmIdx) {
+            proj += a;
+          } else {
+            var f = computeAdjFactor(aT, bT, 3);
+            proj += b * f;
+          }
+        });
+        var isPrj = mi > cmIdx;
+        monthly.push({month:m, actuals:act, budget:bud, projected:proj, isProjected:isPrj});
+        fyProj += proj; fyBud += bud;
+      });
+    } else {
+      var aT = prodT[li+'_act'] || {};
+      var bT = prodT[li+'_bud'] || {};
+      var factor = computeAdjFactor(aT, bT, 3);
+      fyMonths.forEach(function(m, mi) {
+        var a = aT[m] || 0, b = bT[m] || 0;
+        var isPrj = mi > cmIdx;
+        var proj = isPrj ? b * factor : a;
+        monthly.push({month:m, actuals:a, budget:b, projected:proj, isProjected:isPrj});
+        fyProj += proj; fyBud += b;
+      });
+    }
+
+    var fyVar = fyProj - fyBud;
+    var fyVarPct = fyBud !== 0 ? fyVar / Math.abs(fyBud) : null;
+    result.push({line_item:li, is_subtotal:isSub, monthly:monthly, fy_proj:fyProj, fy_bud:fyBud, fy_var:fyVar, fy_var_pct:fyVarPct});
+  });
+  return result;
+}
+
 function computeKpiProjection() {
   var fyMonths = projMonthsForYear();
   var cmIdx = fyMonths.indexOf(currentMonth);
@@ -1334,10 +1396,14 @@ function renderProjection() {
   if (cmIdx < 0) cmIdx = fyMonths.length - 1;
   var yr = projYear();
 
-  document.getElementById('proj-subtitle').textContent = currentTier + ' · Hybrid projection through Dec ' + String(yr).slice(-2);
-  document.getElementById('proj-pnl-title').textContent = 'P&L Projection — ' + currentTier + ' — FY' + String(yr).slice(-2) + ' (R$M)';
+  var projProdSel = document.getElementById('proj-product-select');
+  var projProd = projProdSel ? projProdSel.value : 'Consolidated';
+  var prodLabel = projProd === 'Consolidated' ? '' : ' — ' + projProd;
 
-  var pnlProj = computeProjection();
+  document.getElementById('proj-subtitle').textContent = currentTier + prodLabel + ' · Hybrid projection through Dec ' + String(yr).slice(-2);
+  document.getElementById('proj-pnl-title').textContent = 'P&L Projection — ' + currentTier + prodLabel + ' — FY' + String(yr).slice(-2) + ' (R$M)';
+
+  var pnlProj = projProd === 'Consolidated' ? computeProjection() : computeProductProjection(projProd);
 
   // --- Summary cards ---
   var summaryEl = document.getElementById('proj-summary-grid');
