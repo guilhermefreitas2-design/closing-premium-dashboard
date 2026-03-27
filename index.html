@@ -1698,7 +1698,7 @@ function renderOpex() {
     var ydp = ytdB !== 0 ? yd / Math.abs(ytdB) : null;
     var c1 = dc(d), c2 = dc(yd);
     var pad = indent ? 'padding-left:' + (indent * 16 + 8) + 'px' : '';
-    var toggle = toggleId ? ' style="cursor:pointer;'+pad+'" onclick="toggleOpexGroup(''+toggleId+'')"' : (pad ? ' style="'+pad+'"' : '');
+    var toggle = toggleId ? ' style="cursor:pointer;'+pad+'" onclick="toggleOpexGroup(\x27'+toggleId+'\x27)"' : (pad ? ' style="'+pad+'"' : '');
     var arrow = toggleId ? '<span class="opex-arrow" id="arrow-'+toggleId+'">\u25B6</span> ' : '';
     bh += '<tr class="'+cls+'"' + (toggleId ? '' : '') + '>';
     bh += '<td'+toggle+'>'+arrow+label+'</td>';
